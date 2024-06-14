@@ -1,10 +1,7 @@
-// server.js
-const express = require('express');
+// generate-midi.js
 const teoria = require('teoria');
 const MidiWriter = require('midi-writer-js');
 const fs = require('fs');
-const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Function to validate and process each note
 function parseNoteToMidi(note) {
@@ -18,32 +15,8 @@ function parseNoteToMidi(note) {
   }
 }
 
-// Endpoint to fetch scales
-app.get('/scale/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    let scale;
-    scale = teoria.scale(root, type);
-    res.json(scale.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Scale' });
-  }
-});
-
-// Endpoint to fetch chords
-app.get('/chord/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    const chord = teoria.chord(root, type);
-    res.json(chord.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Chord' });
-  }
-});
-
-// MIDI Conversion Endpoint using Direct MIDI Values
-app.get('/text-to-midi', (req, res) => {
-  const notes = req.query.notes.split(','); // Comma-separated note names
+// Function to generate MIDI file from note list
+function generateMidiFile(notes, outputPath) {
   const track = new MidiWriter.Track();
   let allNotesValid = true;
 
@@ -66,12 +39,15 @@ app.get('/text-to-midi', (req, res) => {
   if (allNotesValid) {
     const write = new MidiWriter.Writer(track);
     const midiData = write.buildFile();
-    const filePath = 'riff.mid';
-    fs.writeFileSync(filePath, Buffer.from(midiData));
-    res.download(filePath, 'riff.mid');
+    fs.writeFileSync(outputPath, Buffer.from(midiData));
+    console.log(`MIDI file written to ${outputPath}`);
   } else {
-    res.status(400).json({ error: 'Invalid notes encountered. See logs for details.' });
+    console.error('Error: One or more notes were invalid. See logs for details.');
   }
-});
+}
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// List of notes to convert (Modify this list to test different notes)
+const notes = ['E4', 'F4', 'G#4', 'A4', 'B4', 'C5', 'D5'];
+const outputPath = 'output.mid';
+
+generateMidiFile(notes, outputPath);
