@@ -3,6 +3,7 @@ const express = require('express');
 const teoria = require('teoria');
 const MidiWriter = require('midi-writer-js');
 const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -18,32 +19,8 @@ function parseNoteToMidi(note) {
   }
 }
 
-// Endpoint to fetch scales
-app.get('/scale/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    let scale;
-    scale = teoria.scale(root, type);
-    res.json(scale.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Scale' });
-  }
-});
-
-// Endpoint to fetch chords
-app.get('/chord/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    const chord = teoria.chord(root, type);
-    res.json(chord.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Chord' });
-  }
-});
-
-// MIDI Conversion Endpoint using Direct MIDI Values
-app.get('/text-to-midi', (req, res) => {
-  const notes = req.query.notes.split(','); // Comma-separated note names
+// Generate MIDI file from note list
+function generateMidiFile(notes, outputPath) {
   const track = new MidiWriter.Track();
   let allNotesValid = true;
 
@@ -66,12 +43,60 @@ app.get('/text-to-midi', (req, res) => {
   if (allNotesValid) {
     const write = new MidiWriter.Writer(track);
     const midiData = write.buildFile();
-    const filePath = 'riff.mid';
-    fs.writeFileSync(filePath, Buffer.from(midiData));
-    res.download(filePath, 'riff.mid');
+    fs.writeFileSync(outputPath, Buffer.from(midiData));
+    console.log(`MIDI file written to ${outputPath}`);
+    return true;
   } else {
-    res.status(400).json({ error: 'Invalid notes encountered. See logs for details.' });
+    console.error('Error: One or more notes were invalid. See logs for details.');
+    return false;
+  }
+}
+
+// Endpoint to fetch scales
+app.get('/scale/:root/:type', (req, res) => {
+  const { root, type } = req.params;
+  try {
+    const scale = teoria.scale(root, type);
+    res.json(scale.simple());
+  } catch (error) {
+    res.status(400).json({ error: 'Invalid Scale' });
   }
 });
 
+// Endpoint to fetch chords
+app.get('/chord/:root/:type', (req, res) => {
+  const { root, type } = req.params;
+  try {
+    const chord = teoria.chord(root, type);
+    res.json(chord.simple());
+  } catch (error) {
+    res.status(400).json({ error: 'Invalid Chord' });
+  }
+});
+
+// Endpoint to convert notes to MIDI
+app.get('/text-to-midi', (req, res) => {
+  const notesParam = req.query.notes;
+  if (!notesParam) {
+    return res.status(400).json({ error: 'No notes provided' });
+  }
+
+  const notes = notesParam.split(','); // Comma-separated note names
+  const outputPath = path.join(__dirname, 'riff.mid');
+
+  if (generateMidiFile(notes, outputPath)) {
+    res.download(outputPath, 'riff.mid', (err) => {
+      if (err) {
+        console.error('Error sending MIDI file:', err);
+        res.status(500).send('Error downloading the file.');
+      } else {
+        console.log('MIDI file sent successfully.');
+      }
+    });
+  } else {
+    res.status(400).json({ error: 'Failed to generate MIDI file' });
+  }
+});
+
+// Start the server
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
