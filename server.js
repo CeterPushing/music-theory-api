@@ -52,28 +52,6 @@ function generateMidiFile(notes, outputPath) {
   }
 }
 
-// Endpoint to fetch scales
-app.get('/scale/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    const scale = teoria.scale(root, type);
-    res.json(scale.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Scale' });
-  }
-});
-
-// Endpoint to fetch chords
-app.get('/chord/:root/:type', (req, res) => {
-  const { root, type } = req.params;
-  try {
-    const chord = teoria.chord(root, type);
-    res.json(chord.simple());
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid Chord' });
-  }
-});
-
 // Endpoint to convert notes to MIDI
 app.get('/text-to-midi', (req, res) => {
   const notesParam = req.query.notes;
@@ -85,17 +63,22 @@ app.get('/text-to-midi', (req, res) => {
   const outputPath = path.join(__dirname, 'riff.mid');
 
   if (generateMidiFile(notes, outputPath)) {
-    res.download(outputPath, 'riff.mid', (err) => {
-      if (err) {
-        console.error('Error sending MIDI file:', err);
-        res.status(500).send('Error downloading the file.');
-      } else {
-        console.log('MIDI file sent successfully.');
-      }
-    });
+    const downloadUrl = `${req.protocol}://${req.get('host')}/riff.mid`;
+    res.json({ download_url: downloadUrl });
   } else {
     res.status(400).json({ error: 'Failed to generate MIDI file' });
   }
+});
+
+// Serve the MIDI file for download
+app.use('/riff.mid', (req, res) => {
+  const filePath = path.join(__dirname, 'riff.mid');
+  res.download(filePath, 'riff.mid', (err) => {
+    if (err) {
+      console.error('Error sending MIDI file:', err);
+      res.status(500).send('Error downloading the file.');
+    }
+  });
 });
 
 // Start the server
